@@ -97,7 +97,6 @@ describe('happy-dom memory leaks', () => {
           },
         });
         const document = new localWindow.DOMParser().parseFromString(SIMPLE_HTML, 'text/html');
-        document.close();
         localWindow.happyDOM.close();
       },
       ITERATIONS,
@@ -119,7 +118,6 @@ describe('happy-dom memory leaks', () => {
           },
         });
         const document = new localWindow.DOMParser().parseFromString(LARGE_HTML, 'text/html');
-        document.close();
         localWindow.happyDOM.close();
       },
       500,
@@ -141,7 +139,6 @@ describe('happy-dom memory leaks', () => {
           },
         });
         const document = new localWindow.DOMParser().parseFromString(RICH_HTML, 'text/html');
-        document.close();
         localWindow.happyDOM.close();
       },
       ITERATIONS,
@@ -205,8 +202,6 @@ describe('happy-dom memory leaks', () => {
 
     for (let i = 1; i <= ITERATIONS; i++) {
       const document = new localWindow.DOMParser().parseFromString(RICH_HTML, 'text/html');
-      document.close();
-
       if (samplePoints.includes(i)) {
         samples.push({ iteration: i, heapMB: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) });
       }
@@ -243,8 +238,6 @@ describe('happy-dom memory leaks', () => {
 
     for (let i = 1; i <= largeIterations; i++) {
       const document = new localWindow.DOMParser().parseFromString(LARGE_HTML, 'text/html');
-      document.close();
-
       if (samplePoints.includes(i)) {
         samples.push({ iteration: i, heapMB: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) });
       }
@@ -284,8 +277,6 @@ describe('happy-dom memory leaks', () => {
       while (document.body.firstChild) {
         document.body.removeChild(document.body.firstChild);
       }
-      document.close();
-
       if (samplePoints.includes(i)) {
         samples.push({ iteration: i, heapMB: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) });
       }

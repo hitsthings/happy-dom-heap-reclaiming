@@ -1,6 +1,6 @@
 # happy-dom Memory Leak Reproduction
 
-Reproduces a memory leak in [happy-dom](https://github.com/nicedoc/happy-dom) v20.9.0 where `document.close()` and `window.happyDOM.close()` do not release DOM nodes from parsed documents.
+Reproduces a memory leak in [happy-dom](https://github.com/capricorn86/happy-dom) v20.9.0 where documents created by `DOMParser.parseFromString()` are never cleaned up by `window.happyDOM.close()`.
 
 ## Running the tests
 
@@ -13,9 +13,11 @@ Tests use the Node.js built-in test runner with `--expose-gc` to allow manual ga
 
 ## Findings
 
-### The leak: `document.close()` does not release DOM nodes
+### Root cause: parsed documents are orphaned from cleanup
 
-When using `DOMParser.parseFromString()` to parse HTML, calling `document.close()` followed by `window.happyDOM.close()` does not detach child nodes from the document. Each parsed document retains memory proportional to its DOM size, and that memory is not freed.
+`DOMParser.parseFromString()` creates a new `HTMLDocument` and sets its `defaultView` to the parent window, but the window never tracks these documents. When `window.happyDOM.close()` is called, it destroys the window's own document via `document[PropertySymbol.destroy]()`, but parsed documents are never reached by this cleanup chain.
+
+`document.close()` is unrelated to memory management -- it is the web API for ending a `document.write()` stream and does not release any resources.
 
 ### Growth is linear and per-document
 
@@ -36,14 +38,13 @@ Using a single `Window` and creating a new `DOMParser` for each iteration produc
 
 ### Workaround: manually remove children
 
-Manually calling `removeChild` on all body children before `document.close()` eliminates the growth:
+Manually calling `removeChild` on all body children eliminates the growth:
 
 ```js
 const document = new localWindow.DOMParser().parseFromString(html, 'text/html');
 while (document.body.firstChild) {
   document.body.removeChild(document.body.firstChild);
 }
-document.close();
 ```
 
 | Iteration | Without removeChild | With removeChild |
@@ -53,11 +54,11 @@ document.close();
 | 250       | 1,089 MB            | 35 MB            |
 | 500       | 2,159 MB            | 53 MB            |
 
-With `removeChild`, heap stays flat (~50 MB), confirming that `close()` is not detaching the DOM tree.
+With `removeChild`, heap stays flat (~50 MB), confirming that the DOM nodes are what's being retained.
 
 ### The memory is eventually GC-reclaimable
 
-With aggressive GC (5 rounds of `gc()` + 50ms delay), the retained memory is eventually collected. This means the nodes are not permanently leaked via strong references from a global root, but rather that `close()` fails to eagerly release internal references, leaving large object graphs reachable until a future GC cycle finds them unreachable through other means.
+With aggressive GC (5 rounds of `gc()` + 50ms delay), the retained memory is eventually collected. The nodes are not permanently leaked via strong references from a global root. Rather, `happyDOM.close()` does not destroy parsed documents, leaving large object graphs reachable until a future GC cycle collects them once all JS references go out of scope.
 
 ## Test structure
 
